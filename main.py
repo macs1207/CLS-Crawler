@@ -3,6 +3,10 @@ import requests
 import hashlib
 import time
 import json
+import logging
+import re
+from lxml import etree
+from bs4 import BeautifulSoup
 from mailSender import sendMail
 
 
@@ -17,7 +21,7 @@ class fileLoad():
                 "loginFailed": "7364cbf35aa828ba6aa5a9334faf4645",
                 # This is the page hash when cookies are lost or gone.
                 "failed": "a9897117eec5eee62199f4d063824446",
-                "content": ""
+                "content": {}
             }
             self.d = data
             with open(self.failName, "w") as f:
@@ -28,16 +32,16 @@ class fileLoad():
             f.seek(0)
             f.truncate()
 
-    def update(self, hash):
+    def update(self, lstHw):
         self.clear()
-        self.d["content"] = hash
+        self.d["content"] = lstHw
         with open(self.failName, "w") as f:
             f.write(json.dumps(self.d))
 
     def failedHash(self):
         return self.d["failed"]
 
-    def oldHash(self):
+    def getCache(self):
         return self.d["content"]
 
     def loginFailed(self):
@@ -49,6 +53,28 @@ def callSend(content):
     bot = info["bot"]
     email = info["email"]
     sendMail(bot, email, content)
+
+
+def getHwList(text):
+    root = etree.HTML(text)
+    with open("page.html", "w") as f:
+        f.write(text)
+    lastHw = {"value": 0}
+    for i in range(2, 4):
+        targets = root.xpath(
+            "//div[@class='news_{}']//table//tr".format(i))
+        for target in targets:
+            try:
+                a = target.xpath("td")
+                match = re.search(r'(?P<value>\d+)', a[0].text)
+                # Get the newest hw.
+                if int(match.groupdict()["value"]) > lastHw["value"]:
+                    lastHw = {"value": int(match.groupdict()["value"]),
+                              "title": a[1].text,
+                              "deadline": a[3].text}
+            except IndexError:
+                continue
+    return lastHw
 
 
 def confIpt(bot, config):
@@ -111,29 +137,40 @@ def main():
     payLoad = {"course_id": 73625}
     cookies = getCookies()
     data = fileLoad("data.json")
-    oldHash = data.oldHash()
     failedHash = data.failedHash()
     while True:
+        # Fetch the informamtion of cls every five minutes.
         r = requests.post(url, data=payLoad, cookies=cookies)
         r.encoding = "utf-8"
         curHash = hashlib.md5(r.text.encode("utf-8")).hexdigest()
+        cache = data.getCache()
         if curHash == failedHash:
+            # Request with new cookie.
             cookies = getCookies()
-        print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\t", end='')
-        if oldHash == curHash:
-            print("No news.\tHash: {}".format(oldHash))
+            logging.warning("Cookies are refreshed!")
+            continue
+        lstHw = getHwList(r.text)
+        logMsg = "\tHW{}: {}\tHash: {}".format(
+            lstHw["value"], lstHw["title"], curHash)
+        if cache == {}:
+            logging.warning("Initial." + logMsg)
+            data.update(lstHw)
         else:
-            if oldHash == "":
-                print("Insert hash: {}".format(curHash))
+            if lstHw["value"] == cache["value"]:
+                # If cls doesn't update.
+                logging.warning("No news." + logMsg)
             else:
-                print("Have news!\tHash: {}".format(curHash))
-                callSend("")
-            data.update(curHash)
-            oldHash = curHash
-
+                # If cls update.
+                logging.warning("Have news!" + logMsg)
+                callSend(time.strftime("YYYY-MM-DD HH:mm:SS", time.localtime())
+                         + "Have news!" + logMsg)
+                data.update(lstHw)
         time.sleep(300)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(filename="log",
+                        datefmt="%y-%m-%d %H:%M:%S",
+                        format="%(asctime)s  %(levelname)s: %(message)s")
     print("Service Start!")
     main()

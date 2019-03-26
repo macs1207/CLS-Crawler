@@ -1,2 +1,4 @@
 config.json
+data.json
 __pycache__/
+log
