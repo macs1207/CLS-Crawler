@@ -7,7 +7,7 @@ def sendMail(bot, receivers, content):
     content = "content"
     email = bot["email"]
     password = bot["password"]
-    subject = "有新作業上傳ㄛ><"
+    subject = "New Homework ><"
     message = MIMEText(content, "plain", 'utf-8')
     message['From'] = bot["email"]
     message['To'] = bot["email"]
