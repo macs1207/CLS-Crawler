@@ -6,7 +6,6 @@ import json
 import logging
 import re
 from lxml import etree
-from bs4 import BeautifulSoup
 from mailSender import sendMail
 
 
@@ -57,8 +56,6 @@ def callSend(content):
 
 def getHwList(text):
     root = etree.HTML(text)
-    with open("page.html", "w") as f:
-        f.write(text)
     lastHw = {"value": 0}
     for i in range(2, 4):
         targets = root.xpath(
