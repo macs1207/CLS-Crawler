@@ -4,7 +4,6 @@ from email.header import Header
 
 
 def sendMail(bot, receivers, content):
-    content = "content"
     email = bot["email"]
     password = bot["password"]
     subject = "有新作業上傳ㄛ><"
